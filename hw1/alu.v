@@ -13,7 +13,7 @@ assign rd = (op == 4'b0000) ? rs1 & rs2 :
             (op == 4'b0010) ? rs1 + rs2 :
             (op == 4'b0110) ? rs1 - rs2 :
             (op == 4'b1100) ? ~(rs1 | rs2) :
-            (op == 4'b0111) ? (rs1 < rs2) ? 32'h1 : 32'h0 :
+            (op == 4'b0111) ? ($signed(rs1) < $signed(rs2)) ? 32'h1 : 32'h0 :
             32'h0;
 assign zero = (rd == 0);
 assign overflow = (op == 4'b0010) ? ((rs1[31] & rs2[31] & ~rd[31]) | (~rs1[31] & ~rs2[31] & rd[31])) : 
