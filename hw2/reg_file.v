@@ -21,4 +21,21 @@ module reg_file #(parameter DWIDTH = 32)
 
 reg [DWIDTH-1:0] R[0:31];
 
+assign rs1 = R[rs1_id];
+assign rs2 = R[rs2_id];
+
+integer i;  // loop index
+always @(posedge clk or posedge rst)
+begin
+    if (rst) begin
+        for (i = 0; i < 32; i = i + 1)
+        begin
+            R[i] <= 0;
+        end
+    end
+    else if (we) begin
+        R[rdst_id] <= rdst;
+    end
+end
+
 endmodule

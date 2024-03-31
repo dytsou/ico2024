@@ -35,5 +35,91 @@ module decode #(parameter DWIDTH = 32)
                      OP_SLT = 4'b0111,
                      OP_NOT_DEFINED = 4'b1111;
 
+    always @(*) begin
+        op = OP_NOT_DEFINED;
+        ssel = 0;
+        imm = 0;
+        rs1_id = 0;
+        rs2_id = 0;
+        rdst_id = 0;
+
+        case(instr[31:26])
+            6'b000000: begin // R-type
+                case(instr[5:0])
+                    6'b100000: begin // R-type(add)
+                        op = OP_ADD;
+                        ssel = 1;
+                        imm = 0;
+                        rs1_id = instr[25:21];
+                        rs2_id = instr[20:16];
+                        rdst_id = instr[15:11];
+                    end
+                    6'b100010: begin // R-type(sub)
+                        op = OP_SUB;
+                        ssel = 1;
+                        imm = 0;
+                        rs1_id = instr[25:21];
+                        rs2_id = instr[20:16];
+                        rdst_id = instr[15:11];
+                    end
+                    6'b100100: begin // R-type(and)
+                        op = OP_AND;
+                        ssel = 1;
+                        imm = 0;
+                        rs1_id = instr[25:21];
+                        rs2_id = instr[20:16];
+                        rdst_id = instr[15:11];
+                    end
+                    6'b100101: begin // R-type(or)
+                        op = OP_OR;
+                        ssel = 1;
+                        imm = 0;
+                        rs1_id = instr[25:21];
+                        rs2_id = instr[20:16];
+                        rdst_id = instr[15:11];
+                    end
+                    6'b100111: begin // R-type(nor)
+                        op = OP_NOR;
+                        ssel = 1;
+                        imm = 0;
+                        rs1_id = instr[25:21];
+                        rs2_id = instr[20:16];
+                        rdst_id = instr[15:11];
+                    end
+                    6'b101010: begin // R-type(slt)
+                        op = OP_SLT;
+                        ssel = 1;
+                        imm = 0;
+                        rs1_id = instr[25:21];
+                        rs2_id = instr[20:16];
+                        rdst_id = instr[15:11];
+                    end
+                    default: begin
+                        op = OP_NOT_DEFINED;
+                    end
+                endcase
+            end
+            6'b001000: begin // I-type(addi)
+                op = OP_ADD;
+                ssel = 0;
+                imm = {{16{instr[15]}}, instr[15:0]};
+                rs1_id = instr[25:21];
+                rs2_id = 0;
+                rdst_id = instr[20:16];
+            end
+            6'b001010: begin // I-type(slti)
+                op = OP_SLT;
+                ssel = 0;
+                imm = {{16{instr[15]}}, instr[15:0]};
+                rs1_id = instr[25:21];
+                rs2_id = 0;
+                rdst_id = instr[20:16];
+            end
+            default: begin
+                op = OP_NOT_DEFINED;
+            end
+        endcase
+    end
 
 endmodule
+
