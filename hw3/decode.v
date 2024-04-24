@@ -13,7 +13,11 @@ module decode #(parameter DWIDTH = 32)
     output reg [DWIDTH-1:0] imm,     // The immediate value (if used).
     output reg [4 : 0]      rs1_id,  // register ID for rs.
     output reg [4 : 0]      rs2_id,  // register ID for rt (if used).
-    output reg [4 : 0]      rdst_id // register ID for rd or rt (if used).
+    output reg [4 : 0]      rdst_id, // register ID for rd or rt (if used).
+    output reg [1 : 0]      jump_type, // jump type
+    output reg [DWIDTH-1:0] jump_addr, // jump address
+    output reg              we_dmem, // write enable for data memory
+    output reg              we_regfile // write enable for register file
 );
 
 /***************************************************************************************
@@ -35,6 +39,13 @@ module decode #(parameter DWIDTH = 32)
                      OP_SLT = 4'b0111,
                      OP_NOT_DEFINED = 4'b1111;
 
+    // Jump type
+    localparam [2:0] J_TYPE_NOP = 3'b000,
+                     J_TYPE_BEQ = 3'b001,
+                     J_TYPE_JAL = 3'b010,
+                     J_TYPE_JR  = 3'b011,
+                     J_TYPE_J   = 3'b100;
+
     always @(*) begin
         op = OP_NOT_DEFINED;
         ssel = 0;
@@ -42,6 +53,10 @@ module decode #(parameter DWIDTH = 32)
         rs1_id = 0;
         rs2_id = 0;
         rdst_id = 0;
+        jump_type = 0;
+        jump_addr = 0;
+        we_dmem = 0;
+        we_regfile = 0;
 
         case(instr[31:26])
             6'b000000: begin // R-type
@@ -53,6 +68,7 @@ module decode #(parameter DWIDTH = 32)
                         rs1_id = instr[25:21];
                         rs2_id = instr[20:16];
                         rdst_id = instr[15:11];
+                        we_regfile = 1;
                     end
                     6'b100010: begin // R-type(sub)
                         op = OP_SUB;
@@ -61,6 +77,7 @@ module decode #(parameter DWIDTH = 32)
                         rs1_id = instr[25:21];
                         rs2_id = instr[20:16];
                         rdst_id = instr[15:11];
+                        we_regfile = 1;
                     end
                     6'b100100: begin // R-type(and)
                         op = OP_AND;
@@ -69,6 +86,7 @@ module decode #(parameter DWIDTH = 32)
                         rs1_id = instr[25:21];
                         rs2_id = instr[20:16];
                         rdst_id = instr[15:11];
+                        we_regfile = 1;
                     end
                     6'b100101: begin // R-type(or)
                         op = OP_OR;
@@ -77,6 +95,7 @@ module decode #(parameter DWIDTH = 32)
                         rs1_id = instr[25:21];
                         rs2_id = instr[20:16];
                         rdst_id = instr[15:11];
+                        we_regfile = 1;
                     end
                     6'b100111: begin // R-type(nor)
                         op = OP_NOR;
@@ -85,6 +104,7 @@ module decode #(parameter DWIDTH = 32)
                         rs1_id = instr[25:21];
                         rs2_id = instr[20:16];
                         rdst_id = instr[15:11];
+                        we_regfile = 1;
                     end
                     6'b101010: begin // R-type(slt)
                         op = OP_SLT;
@@ -93,6 +113,11 @@ module decode #(parameter DWIDTH = 32)
                         rs1_id = instr[25:21];
                         rs2_id = instr[20:16];
                         rdst_id = instr[15:11];
+                        we_regfile = 1;
+                    end 
+                    6'b001000: begin // R-type(jr)
+                        jump_type = J_TYPE_JR;
+                        rs1_id = instr[25:21];
                     end
                     default: begin
                         op = OP_NOT_DEFINED;
@@ -106,6 +131,7 @@ module decode #(parameter DWIDTH = 32)
                 rs1_id = instr[25:21];
                 rs2_id = 0;
                 rdst_id = instr[20:16];
+                we_regfile = 1;
             end
             6'b001010: begin // I-type(slti)
                 op = OP_SLT;
@@ -114,6 +140,44 @@ module decode #(parameter DWIDTH = 32)
                 rs1_id = instr[25:21];
                 rs2_id = 0;
                 rdst_id = instr[20:16];
+                we_regfile = 1;
+            end
+            6'b100011: begin // I-type(lw)
+                op = OP_ADD;
+                ssel = 0;
+                imm = {{16{instr[15]}}, instr[15:0]} << 2;
+                rs1_id = instr[25:21];
+                rs2_id = 0;
+                rdst_id = instr[20:16];
+                we_regfile = 1;
+            end
+            6'b101011: begin // I-type(sw)
+                op = OP_ADD;
+                ssel = 0;
+                imm = {{16{instr[15]}}, instr[15:0]} << 2;
+                rs1_id = instr[25:21];
+                rs2_id = instr[20:16];
+                rdst_id = 0;
+                we_dmem = 1;
+            end
+            6'b000100: begin // I-type(beq)
+                op = OP_SUB;
+                jump_type = J_TYPE_BEQ;
+                ssel = 1;
+                imm = {{16{instr[15]}}, instr[15:0]};
+                rs1_id = instr[25:21];
+                rs2_id = instr[20:16];
+                rdst_id = 0;
+                we_regfile = 1;
+            end
+            6'b000010: begin // J-type(j)
+                jump_type = J_TYPE_J;
+                jump_addr = instr[25:0] << 2;
+            end
+            6'b000011: begin // J-type(jal)
+                jump_type = J_TYPE_JAL;
+                jump_addr = instr[25:0] << 2;
+                we_regfile = 1;
             end
             default: begin
                 op = OP_NOT_DEFINED;
