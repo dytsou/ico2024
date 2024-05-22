@@ -109,13 +109,13 @@ module hw3_tb (
 
         golden_dmem[0] = 0;
         golden_dmem[1] = 0;
-        golden_dmem[2] = 68;
+        golden_dmem[2] = 0;
         golden_dmem[3] = 0;
         golden_dmem[4] = 0;
         golden_dmem[5] = 0;
         golden_dmem[6] = 0;
         golden_dmem[7] = 0;
-        golden_dmem[8] = 0;
+        golden_dmem[8] = 68;
         golden_dmem[9] = 0;
         golden_dmem[10] = 0;
         golden_dmem[11] = 0;
