@@ -10,8 +10,8 @@ module alu#(parameter DWIDTH = 32)
 
 assign rd = (op == 4'b0000) ? rs1 & rs2 :
             (op == 4'b0001) ? rs1 | rs2 :
-            (op == 4'b0010) ? rs1 + rs2 :
-            (op == 4'b0110) ? rs1 - rs2 :
+            (op == 4'b0010) ? $signed(rs1) + $signed(rs2) :
+            (op == 4'b0110) ? $signed(rs1) - $signed(rs2) :
             (op == 4'b1100) ? ~(rs1 | rs2) :
             (op == 4'b0111) ? ($signed(rs1) < $signed(rs2)) ? 32'h1 : 32'h0 :
             32'h0;

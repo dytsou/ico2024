@@ -17,7 +17,9 @@ module decode #(parameter DWIDTH = 32)
     output reg [1 : 0]      jump_type, // jump type
     output reg [DWIDTH-1:0] jump_addr, // jump address
     output reg              we_dmem, // write enable for data memory
-    output reg              we_regfile // write enable for register file
+    output reg              we_regfile, // write enable for register file
+    output reg [2 : 0]      branch, // branch signal 
+    output reg [5 : 0]      rdst_ctrl // destination register ID
 );
 
 /***************************************************************************************
@@ -57,9 +59,13 @@ module decode #(parameter DWIDTH = 32)
         jump_addr = 0;
         we_dmem = 0;
         we_regfile = 0;
+        branch = 0;
+        rdst_ctrl = instr[31:26];
+        
 
         case(instr[31:26])
             6'b000000: begin // R-type
+                branch = 3'b000;
                 case(instr[5:0])
                     6'b100000: begin // R-type(add)
                         op = OP_ADD;
@@ -125,6 +131,7 @@ module decode #(parameter DWIDTH = 32)
                 endcase
             end
             6'b001000: begin // I-type(addi)
+                branch = 3'b000;
                 op = OP_ADD;
                 ssel = 0;
                 imm = {{16{instr[15]}}, instr[15:0]};
@@ -134,6 +141,7 @@ module decode #(parameter DWIDTH = 32)
                 we_regfile = 1;
             end
             6'b001010: begin // I-type(slti)
+                branch = 3'b000;
                 op = OP_SLT;
                 ssel = 0;
                 imm = {{16{instr[15]}}, instr[15:0]};
@@ -143,6 +151,7 @@ module decode #(parameter DWIDTH = 32)
                 we_regfile = 1;
             end
             6'b100011: begin // I-type(lw)
+                branch = 3'b000;
                 op = OP_ADD;
                 ssel = 0;
                 imm = {{16{instr[15]}}, instr[15:0]} << 2;
@@ -152,6 +161,7 @@ module decode #(parameter DWIDTH = 32)
                 we_regfile = 1;
             end
             6'b101011: begin // I-type(sw)
+                branch = 3'b000;
                 op = OP_ADD;
                 ssel = 0;
                 imm = {{16{instr[15]}}, instr[15:0]} << 2;
@@ -161,6 +171,7 @@ module decode #(parameter DWIDTH = 32)
                 we_dmem = 1;
             end
             6'b000100: begin // I-type(beq)
+                branch = 3'b001;
                 op = OP_SUB;
                 jump_type = J_TYPE_BEQ;
                 ssel = 1;
@@ -171,10 +182,12 @@ module decode #(parameter DWIDTH = 32)
                 we_regfile = 1;
             end
             6'b000010: begin // J-type(j)
+                branch = 3'b011;
                 jump_type = J_TYPE_J;
                 jump_addr = instr[25:0] << 2;
             end
             6'b000011: begin // J-type(jal)
+                branch = 3'b011;
                 jump_type = J_TYPE_JAL;
                 jump_addr = instr[25:0] << 2;
                 we_regfile = 1;
