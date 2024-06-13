@@ -31,6 +31,7 @@ module core_top #(
     wire [DWIDTH-1:0] rdata_dmem;
 
     // Alu
+    // rs1_ALU == rs1_forward
     wire  [DWIDTH-1:0] rs2_ALU;
     wire              zero;
     wire              overflow;
@@ -47,55 +48,63 @@ module core_top #(
     reg  [DWIDTH-1:0] pc;
 
     // Hazard control signals
-    // IF_ID
-    wire [DWIDTH-1:0] IF_ID_pc;
-    wire [DWIDTH-1:0] IF_ID_instr;
-    // ID_EX
-    wire [DWIDTH-1:0] ID_EX_pc;
-    wire [DWIDTH-1:0] ID_EX_jump_addr;
-    wire [2 : 0]      ID_EX_branch;
-    wire              ID_EX_we_dmem;
-    wire              ID_EX_we_regfile;
-    wire [3 : 0]      ID_EX_op;
-    wire [DWIDTH-1:0] ID_EX_imm;
-    wire [DWIDTH-1:0] ID_EX_rs1;
-    wire [DWIDTH-1:0] ID_EX_rs2;
-    wire              ID_EX_ssel;
-    wire [4 : 0]      ID_EX_rdst_id;
-    wire [5 : 0]      ID_EX_rdst_ctrl;
+    // ID stage
+    wire [DWIDTH-1:0] ID_pc;
+    wire [DWIDTH-1:0] ID_instr;
+    wire              stall;
+
+    // EX stage
+    wire [DWIDTH-1:0] EX_pc;
+    wire [DWIDTH-1:0] EX_jump_addr;
+    wire [2 : 0]      EX_jump_type;
+    wire [2 : 0]      EX_branch;
+    wire              EX_stall;
+    wire              EX_we_dmem;
+    wire              EX_we_regfile;
+    wire [3 : 0]      EX_op;
+    wire  [DWIDTH-1:0] EX_imm;
+    wire [DWIDTH-1:0] EX_rs1;
+    wire [DWIDTH-1:0] EX_rs2;
+    wire [4 : 0]      EX_rs1_id;
+    wire [4 : 0]      EX_rs2_id;
+    wire              EX_ssel;
+    wire [4 : 0]      EX_rdst_id;
+    wire [5 : 0]      EX_rdst_ctrl;
     
-    // EX_MEM
-    wire [DWIDTH-1:0] EX_MEM_pc;
-    wire [2 : 0]      EX_MEM_branch;
-    wire              EX_MEM_we_dmem;
-    wire              EX_MEM_we_regfile;
-    wire [4 : 0]      EX_MEM_rdst_id;
-    wire [DWIDTH-1:0] EX_MEM_rd;
-    wire [DWIDTH-1:0] EX_MEM_rs2;
-    wire [5 : 0]      EX_MEM_rdst_ctrl;
+    // MEM stage
+    wire [DWIDTH-1:0] MEM_pc;
+    wire [2 : 0]      MEM_jump_type;
+    wire [2 : 0]      MEM_branch;
+    wire [DWIDTH-1:0] MEM_imm;
+    wire              MEM_zero;
+    wire              MEM_stall;
+    wire              MEM_we_dmem;
+    wire              MEM_we_regfile;
+    wire [4 : 0]      MEM_rdst_id;
+    wire [DWIDTH-1:0] MEM_rd;
+    wire [DWIDTH-1:0] MEM_rs2;
+    wire [5 : 0]      MEM_rdst_ctrl;
 
-    // MEM_WB
-    wire [DWIDTH-1:0] MEM_WB_pc;
-    wire [4 : 0]      MEM_WB_rdst_id;
-    wire [DWIDTH-1:0] MEM_WB_rd;
-    wire              MEM_WB_we_regfile;
-    wire [DWIDTH-1:0] MEM_WB_rdata_dmem;
-    wire [5 : 0]      MEM_WB_rdst_ctrl;
+    // WB stage
+    wire [DWIDTH-1:0] WB_pc;
+    wire [4 : 0]      WB_rdst_id;
+    wire [DWIDTH-1:0] WB_rd;
+    wire              WB_we_regfile;
+    wire [DWIDTH-1:0] WB_rdata_dmem;
+    wire [5 : 0]      WB_rdst_ctrl;
 
-    // Hazard control signalswe
+    // Hazard control signals
     wire pc_write;
     wire IF_ID_write;
     wire IF_ID_flush;
     wire ID_EX_flush;
     wire EX_MEM_flush;
-    wire stall;
 
-    // memory read
-    reg memory_read;
-    assign memory_read = ID_EX_we_regfile || ID_EX_we_dmem;
+    wire [DWIDTH-1:0] rs1_forward;
+    wire [DWIDTH-1:0] rs2_forward;
 
-    assign rdst = (MEM_WB_rdst_ctrl == 6'b100011) ? MEM_WB_rdata_dmem : (MEM_WB_rdst_ctrl == 6'b000011) ? MEM_WB_pc+4 : MEM_WB_rd;
-    assign rs2_ALU = (ID_EX_ssel == 0) ? ID_EX_imm : ID_EX_rs2;
+    assign rdst = (WB_rdst_ctrl == 6'b100011) ? WB_rdata_dmem : (WB_rdst_ctrl == 6'b000011) ? WB_pc+4 : WB_rd;
+    assign rs2_ALU = (EX_ssel == 0) ? EX_imm : rs2_forward;
 
     imem imem_inst(
         .addr(pc[5:0]),
@@ -110,12 +119,12 @@ module core_top #(
         .write(IF_ID_write),
         .data_i({pc, instr}), // 64-bit
         // output
-        .data_o({IF_ID_pc, IF_ID_instr})
+        .data_o({ID_pc, ID_instr})
     );
 
     decode decode_inst (
         // input
-        .instr(IF_ID_instr),
+        .instr(ID_instr),
 
         // output  
         .jump_type(jump_type),
@@ -133,6 +142,15 @@ module core_top #(
         .rdst_ctrl(rdst_ctrl)
     );
 
+    load_use_hazard load_use_hazard_inst (
+        // input
+        .clk(clk),
+        .rst(rst),
+        .instr(ID_instr[31:26]),
+        // output
+        .stall(stall)
+    );
+
     reg_file reg_file_inst (
         // input
         .clk(clk),
@@ -141,8 +159,8 @@ module core_top #(
         .rs1_id(rs1_id),
         .rs2_id(rs2_id),
 
-        .we(MEM_WB_we_regfile),
-        .rdst_id(MEM_WB_rdst_id),
+        .we(WB_we_regfile),
+        .rdst_id(WB_rdst_id),
         .rdst(rdst),
 
 
@@ -151,16 +169,18 @@ module core_top #(
         .rs2(rs2)  // rt
     );
 
-    cpu_pipeline #(.DWIDTH(181)) idex(
+    cpu_pipeline #(.DWIDTH(195)) idex(
         // input
         .clk(clk),
         .rst(rst),
         .flush(ID_EX_flush),
         .write(1),
         .data_i({
-            IF_ID_pc, // 32
+            ID_pc, // 32
             jump_addr, // 32
+            jump_type, // 3
             branch, // 3
+            stall, // 1
             we_dmem, // 1
             we_regfile, // 1
             op, // 4
@@ -168,28 +188,34 @@ module core_top #(
             ssel, // 1
             rs1, // 32
             rs2, // 32
+            rs1_id, // 5
+            rs2_id, // 5
             rdst_id, // 5
             rdst_ctrl}), // 6
         // output
         .data_o({
-            ID_EX_pc, // 32
-            ID_EX_jump_addr, // 32
-            ID_EX_branch, // 3
-            ID_EX_we_dmem, // 1
-            ID_EX_we_regfile, // 1
-            ID_EX_op, // 4
-            ID_EX_imm, // 32
-            ID_EX_ssel, // 1
-            ID_EX_rs1, // 32
-            ID_EX_rs2, // 32
-            ID_EX_rdst_id, // 5
-            ID_EX_rdst_ctrl}) // 6
+            EX_pc, // 32
+            EX_jump_addr, // 32
+            EX_jump_type, // 3
+            EX_branch, // 3
+            EX_stall, // 1
+            EX_we_dmem, // 1
+            EX_we_regfile, // 1
+            EX_op, // 4
+            EX_imm, // 32
+            EX_ssel, // 1
+            EX_rs1, // 32
+            EX_rs2, // 32
+            EX_rs1_id, // 5
+            EX_rs2_id, // 5
+            EX_rdst_id, // 5
+            EX_rdst_ctrl}) // 6
     );
 
     alu alu_inst (
         // input
-        .op(ID_EX_op),
-        .rs1(ID_EX_rs1),
+        .op(EX_op),
+        .rs1(rs1_forward), 
         .rs2(rs2_ALU),
 
         // output
@@ -198,39 +224,47 @@ module core_top #(
         .overflow(overflow)
     );
 
-    cpu_pipeline #(.DWIDTH(112)) exmem(
+    cpu_pipeline #(.DWIDTH(149)) exmem(
         // input
         .clk(clk),
         .rst(rst),
         .flush(EX_MEM_flush),
         .write(1),
         .data_i({
-            ID_EX_pc, // 32
-            ID_EX_branch, // 3
-            ID_EX_we_dmem, // 1
-            ID_EX_we_regfile, // 1
-            ID_EX_rdst_id, // 5
+            EX_pc, // 32
+            EX_branch, // 3
+            EX_jump_type, // 3
+            EX_imm, // 32
+            EX_stall, // 1
+            EX_we_dmem, // 1
+            EX_we_regfile, // 1
+            EX_rdst_id, // 6 
             rd, // 32
-            ID_EX_rs2, // 32
-            ID_EX_rdst_ctrl}), // 6
+            zero, // 1 
+            rs2_forward, // 32 
+            EX_rdst_ctrl}), // 6 
         // output
         .data_o({
-            EX_MEM_pc, // 32
-            EX_MEM_branch, // 3
-            EX_MEM_we_dmem, // 1
-            EX_MEM_we_regfile, // 1
-            EX_MEM_rdst_id, // 5
-            EX_MEM_rd, // 32
-            EX_MEM_rs2, // 32
-            EX_MEM_rdst_ctrl}) // 6
+            MEM_pc, // 32
+            MEM_branch, // 3
+            MEM_jump_type, // 3
+            MEM_imm, // 32
+            MEM_stall, // 1
+            MEM_we_dmem, // 1
+            MEM_we_regfile, // 1
+            MEM_rdst_id, // 6
+            MEM_rd, // 32
+            MEM_zero, // 1
+            MEM_rs2, // 32
+            MEM_rdst_ctrl}) // 6
     );
 
     // Dmem
     dmem dmem_inst (
         .clk(clk),
-        .addr(EX_MEM_rd),
-        .we(EX_MEM_we_dmem),
-        .wdata(EX_MEM_rs2),
+        .addr(MEM_rd),
+        .we(MEM_we_dmem),
+        .wdata(MEM_rs2),
         // output
         .rdata(rdata_dmem)
     );
@@ -242,41 +276,69 @@ module core_top #(
         .flush(0),
         .write(1),
         .data_i({
-            EX_MEM_pc, // 32
-            EX_MEM_rdst_id, // 5
-            EX_MEM_rd, // 32
-            EX_MEM_we_regfile, // 1
+            MEM_pc, // 32
+            MEM_rdst_id, // 5
+            MEM_rd, // 32
+            MEM_we_regfile, // 1
             rdata_dmem, // 32
-            EX_MEM_rdst_ctrl}), // 6
+            MEM_rdst_ctrl}), // 6
         // output
         .data_o({
-            MEM_WB_pc, // 32
-            MEM_WB_rdst_id, // 5
-            MEM_WB_rd, // 32
-            MEM_WB_we_regfile, // 1
-            MEM_WB_rdata_dmem, // 32
-            MEM_WB_rdst_ctrl}) // 6
+            WB_pc, // 32
+            WB_rdst_id, // 5
+            WB_rd, // 32
+            WB_we_regfile, // 1
+            WB_rdata_dmem, // 32
+            WB_rdst_ctrl}) // 6
     );
+
+    
 
     // Hazard control
     hazard_ctrl hazard_ctrl_inst (
         // input
-        .branch(EX_MEM_branch),
-        .memory_read(memory_read),
-        .ID_EX_rdst_id(ID_EX_rdst_id),
-        .IF_ID_rs_id(rs1_id),
-        .IF_ID_rt_id(rs2_id),
-        .stall_i(stall),
-
+        .branch(MEM_branch),
+        .memory_read({EX_stall, stall}),
+        .EX_rdst_id(EX_rdst_id),
+        .ID_rs_id(rs1_id),
+        .ID_rt_id(rs2_id),
         // output
         .pc_write(pc_write),
         .IF_ID_write(IF_ID_write),
         .IF_ID_flush(IF_ID_flush),
         .ID_EX_flush(ID_EX_flush),
-        .EX_MEM_flush(EX_MEM_flush),
-        .stall_o(stall)
+        .EX_MEM_flush(EX_MEM_flush)
     );
 
+    // Forward unit
+    forward_unit forward_unit_instA (
+        // input
+        .clk(clk),
+        .MEM_we_regfile(MEM_we_regfile),
+        .WB_we_regfile(WB_we_regfile),
+        .EX_rs_id(EX_rs1_id),
+        .MEM_rdst_id(MEM_rdst_id),
+        .WB_rdst_id(WB_rdst_id),
+        .MEM_rd(MEM_rd),
+        .rdst(rdst),
+        .rs(EX_rs1),
+        // output
+        .rs_forward(rs1_forward)
+    );
+    forward_unit forward_unit_instB (
+        // input
+        .clk(clk),
+        .MEM_we_regfile(MEM_we_regfile),
+        .WB_we_regfile(WB_we_regfile),
+        .EX_rs_id(EX_rs2_id),
+        .MEM_rdst_id(MEM_rdst_id),
+        .WB_rdst_id(WB_rdst_id),
+        .MEM_rd(MEM_rd),
+        .rdst(rdst),
+        .rs(EX_rs2),
+        // output
+        .rs_forward(rs2_forward)
+    );
 
     // Program Counter
     always @(negedge clk) begin
@@ -285,15 +347,15 @@ module core_top #(
         end
         else begin
             if (pc_write) begin
-                if (jump_type == J_TYPE_NOP)
+                if (MEM_jump_type == J_TYPE_NOP)
                     pc <= pc + 4;
-                else if (jump_type == J_TYPE_BEQ && zero)
+                else if (MEM_jump_type == J_TYPE_BEQ && MEM_zero)
                     pc <= pc + 4 + 4 * imm;
-                else if (jump_type == J_TYPE_JAL)
+                else if (MEM_jump_type == J_TYPE_JAL)
                     pc <= jump_addr[27:0] + (pc[31:28] << 28);
-                else if (jump_type == J_TYPE_JR)
+                else if (MEM_jump_type == J_TYPE_JR)
                     pc <= rs1;
-                else if (jump_type == J_TYPE_J)
+                else if (MEM_jump_type == J_TYPE_J)
                     pc <= jump_addr[27:0] + (pc[31:28] << 28);
                 else 
                     pc <= pc + 4;  
@@ -315,7 +377,55 @@ module cpu_pipeline #(
     input  [DWIDTH-1 : 0] data_i,
     output reg [DWIDTH-1 : 0] data_o
 );
-    always @(negedge clk) begin
+    always @(posedge clk) begin
         data_o <= (flush || rst) ? 0 : write ? data_i :  data_o;    
     end
 endmodule
+
+
+module forward_unit #(
+    parameter DWIDTH = 32
+)(
+    input                 clk,
+    input                 MEM_we_regfile,
+    input                 WB_we_regfile,
+  
+    input [5 : 0]         EX_rs_id,
+    input [5 : 0]         MEM_rdst_id,
+    input [5 : 0]         WB_rdst_id,
+    input [DWIDTH-1:0]    MEM_rd,
+    input [DWIDTH-1:0]    rdst,
+    input [DWIDTH-1:0]    rs,
+    output reg [DWIDTH-1:0]    rs_forward
+);
+    always @(negedge clk) begin
+        if(EX_rs_id == MEM_rdst_id && MEM_rdst_id != 0 && MEM_we_regfile) begin
+            rs_forward <= MEM_rd;
+        end
+        else if(EX_rs_id == WB_rdst_id && WB_rdst_id != 0 && WB_we_regfile)
+            rs_forward <= rdst;
+        else
+            rs_forward <= rs;
+    end
+endmodule
+
+module load_use_hazard (
+    input                 clk,
+    input                 rst,
+    input[5 : 0]          instr,
+    output reg            stall
+);
+
+    always @(posedge clk) begin
+        if(rst) begin
+            stall <= 0;
+        end
+        else begin
+            if(instr == 6'b100011)
+                stall <= 1;
+            else
+                stall <= 0;
+        end
+    end
+endmodule
+

@@ -6,12 +6,12 @@ module dmem (
     output [31 : 0] rdata  // read data
 );
 
-    reg [31 : 0] RAM [15 : 0];
+    reg [31 : 0] RAM [63 : 0];
 
     integer idx;
 
     initial begin
-        for (idx = 0; idx < 16; idx = idx+1) RAM[idx] = 32'h0;
+        for (idx = 0; idx < 64; idx = idx+1) RAM[idx] = 32'h0;
     end
 
     // Read operation

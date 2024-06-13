@@ -25,7 +25,7 @@ assign rs1 = R[rs1_id];
 assign rs2 = R[rs2_id];
 
 integer i;  // loop index
-always @(posedge clk or posedge rst)
+always @(negedge clk or posedge rst)
 begin
     if (rst) begin
         for (i = 0; i < 32; i = i + 1)
